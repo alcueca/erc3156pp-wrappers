@@ -7,6 +7,7 @@ import { IERC7399 } from "./interfaces/IERC7399.sol";
 import { IERC20Metadata as IERC20 } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FunctionCodec } from "./utils/FunctionCodec.sol";
+import { TransientBytes } from "lib/transient-bytes/src/TransientBytes.sol";
 
 /// @dev All ERC7399 flash loan wrappers have the same general structure.
 /// - The ERC7399 `flash` function is the entry point for the flash loan.
@@ -23,15 +24,14 @@ import { FunctionCodec } from "./utils/FunctionCodec.sol";
 /// - The wrapper returns to the original borrower the stored result of its callback.
 abstract contract BaseWrapper is IERC7399 {
     using SafeERC20 for IERC20;
-
+    using TransientBytes for bytes;
+    using TransientBytes for bytes32;
     struct Data {
         address loanReceiver;
         address initiator;
         function(address, address, address, uint256, uint256, bytes memory) external returns (bytes memory) callback;
         bytes initiatorData;
     }
-
-    bytes internal _callbackResult;
 
     /// @inheritdoc IERC7399
     /// @dev The entry point for the ERC7399 flash loan. Packs data to convert the legacy flash loan into an ERC7399
@@ -84,10 +84,10 @@ abstract contract BaseWrapper is IERC7399 {
     function _flash(address asset, uint256 amount, Data memory data) internal virtual returns (bytes memory result) {
         _flashLoan(asset, amount, abi.encode(data));
 
-        result = _callbackResult;
+        result = bytes32(0).get();
         // Avoid storage write if not needed
         if (result.length > 0) {
-            delete _callbackResult;
+            bytes32(0).delet();
         }
         return result;
     }
@@ -109,7 +109,7 @@ abstract contract BaseWrapper is IERC7399 {
 
         if (result.length > 0) {
             // if there's any result, it is kept in a storage variable to be retrieved later in this tx
-            _callbackResult = result;
+            result.set(bytes32(0));
         }
     }
 
